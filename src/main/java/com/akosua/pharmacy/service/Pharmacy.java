@@ -67,8 +67,6 @@ public final class Pharmacy {
         BigDecimal subtotal = medication.getPrice().multiply(BigDecimal.valueOf(quantity));
         BigDecimal total = customer.applyDiscount(subtotal).setScale(MONEY_SCALE, MONEY_ROUNDING);
 
-        customer.recordDispense("Got " + quantity + " x " + medication.getName());
-
         Optional<String> recordedPrescriber = medication.requiresPrescriber()
                 ? Optional.of(prescriber)
                 : Optional.empty();
@@ -97,6 +95,16 @@ public final class Pharmacy {
     }
 
     public List<Transaction> getTransactions() { return ledger.getTransactions(); }
+
+    /** What a customer has been dispensed, read from the ledger so there is one source of truth. */
+    public List<String> getHistory(Customer customer) {
+        requireKnownCustomer(customer);
+        return ledger.getTransactions().stream()
+                .filter(transaction -> transaction.type() == TransactionType.DISPENSE)
+                .filter(transaction -> transaction.customerId().equals(Optional.of(customer.getId())))
+                .map(transaction -> "Got " + transaction.quantity() + " x " + transaction.medicationName())
+                .toList();
+    }
 
     public void printReport() {
         System.out.println("\n=== " + name + " - end of day ===");
