@@ -16,31 +16,44 @@ The redesign focuses on:
 
 ## 2. Project organisation
 
-The application follows a layered package structure:
+The application follows a package structure organised by responsibility:
 
 ```text
 src/main/java/com/akosua/pharmacy/
 ├── Main.java
 ├── model/
+│   ├── Medication.java
+│   ├── OverTheCounterMedication.java
+│   ├── PrescriptionMedication.java
+│   ├── Customer.java
+│   ├── WalkInCustomer.java
+│   ├── RegisteredPatient.java
+│   ├── Transaction.java
+│   └── TransactionType.java
 ├── inventory/
+│   └── Inventory.java
 ├── ledger/
+│   └── Ledger.java
 ├── service/
+│   └── Pharmacy.java
 └── exceptions/
+    ├── InsufficientStockException.java
+    └── MissingPrescriberException.java
 ```
 
-The project uses Maven's standard source directory, `src/main/java`, so that Maven can locate and compile application code without additional source-directory configuration.
+The project uses Maven's standard source directory, `src/main/java`, so Maven can locate and compile application code without additional source-directory configuration.
 
 The Java package structure groups related classes by responsibility.
 
-| Package | Responsibility |
-|---|---|
-| `model` | Represents medications, customers and transactions. |
-| `inventory` | Manages medication collections and stock-related queries. |
-| `ledger` | Maintains transaction history. |
-| `service` | Coordinates pharmacy operations. |
-| `exceptions` | Defines application-specific business failures. |
+| Package      | Responsibility                                            |
+| ------------ | --------------------------------------------------------- |
+| `model`      | Represents medications, customers and transactions.       |
+| `inventory`  | Manages medication collections and stock-related queries. |
+| `ledger`     | Maintains transaction history.                            |
+| `service`    | Coordinates pharmacy operations.                          |
+| `exceptions` | Defines application-specific business failures.           |
 
-This structure is intended to prevent unrelated responsibilities from accumulating in one class.
+This structure prevents unrelated responsibilities from accumulating in one class.
 
 ## 3. Design decisions and rationale
 
@@ -74,23 +87,29 @@ For example, medication stock should not be changed through direct field assignm
 medication.stock = -10;
 ```
 
-Instead, stock changes should go through controlled methods such as:
+Instead, stock changes should go through controlled methods:
 
 ```java
 medication.dispenseStock(quantity);
 medication.restock(quantity);
 ```
 
-These methods can validate the requested operation before changing the state.
+These methods validate the requested operation before changing the state.
 
 The access modifiers serve different purposes:
 
 - `private`: Restricts access to the declaring class.
-- `protected`: Allows subclasses to access selected members and also provides package-level access.
-- `public`: Makes members accessible to other classes that can access the class.
-- No modifier (package-private): Restricts access to the same package.
+- `protected`: Allows access from subclasses, including subclasses in other packages, and from classes in the same package.
+- `public`: Makes members accessible to other classes that can access the declaring class.
+- No modifier (package-private): Restricts access to classes in the same package.
 
-The constructors of abstract parent classes use `protected` so subclasses can initialise the inherited state without exposing those constructors as general public creation methods.
+The constructors of the abstract parent classes use `protected`.
+
+This allows subclasses to initialise inherited state, including subclasses located in a different package. Classes in the same package can also access protected constructors.
+
+A package-private constructor would work for the current medication subclasses because they are in the same package. However, `protected` provides flexibility if a future subclass is placed in another package.
+
+An abstract class cannot be instantiated directly, regardless of whether its constructor is public, protected or package-private.
 
 **Why some methods are `final`:** Methods that protect important stock or history rules should not be overridden casually by subclasses. Declaring them `final` prevents subclasses from replacing that implementation.
 
@@ -123,13 +142,37 @@ Customer customer;
 
 This is an example of polymorphism. The actual object's implementation determines which overridden behaviour is executed.
 
+For example, when the pharmacy calls:
+
+```java
+medication.validateDispensing(prescriber);
+```
+
+Java executes the implementation belonging to the actual medication object.
+
 **Alternative considered:** Using conditional statements throughout the pharmacy service to check the type of every medication or customer.
 
 That approach would spread type-specific rules across the application. Inheritance keeps those differences closer to the classes they concern.
 
 **Trade-off:** Adding many new types can increase the number of subclasses.
 
-### 3.4 BigDecimal for monetary values
+### 3.4 Why Medication is not sealed
+
+The initial design sketch proposed a sealed `Medication` class.
+
+The final implementation uses an open abstract class instead.
+
+This is a deliberate design decision based on the lab's future-extension requirement.
+
+A sealed class restricts which classes can extend it. A new permitted medication subtype would require updating the parent class's `permits` declaration.
+
+The lab specifically asks for a future controlled-medication category to be added without rewriting existing classes.
+
+Using an open abstract class allows a new medication category to extend `Medication` without modifying the parent class.
+
+The abstract class still provides a common structure and requires subclasses to implement the necessary abstract methods. It simply does not restrict which classes may extend it.
+
+### 3.5 BigDecimal for monetary values
 
 **Decision:** `BigDecimal` is used for medication prices and transaction totals.
 
@@ -162,7 +205,7 @@ This is unsuitable for calculations where predictable decimal precision matters.
 
 **Trade-off:** `BigDecimal` is more verbose and requires deliberate decisions about scale and rounding.
 
-### 3.5 Transaction as a record
+### 3.6 Transaction as a record
 
 **Decision:** `Transaction` is represented using a Java record.
 
@@ -185,11 +228,11 @@ That would work, but it would require more repetitive code for a class whose mai
 
 **Important limitation:** Records are only shallowly immutable. Their component references cannot be reassigned after construction, but referenced objects may still be mutable.
 
-For example, a transaction containing a `Medication` reference does not automatically preserve a historical copy of that medication's name or price.
+For example, a transaction containing a `Medication` reference does not automatically preserve a historical copy of that medication's name, price or stock.
 
-If historical transaction details must remain unchanged even when medication information changes, the transaction should store the relevant values as snapshots.
+If historical transaction details must remain unchanged even when medication information changes, the transaction should store the relevant values as snapshots, such as the medication name and unit price at the time of dispensing.
 
-### 3.6 Enum for transaction types
+### 3.7 Enum for transaction types
 
 **Decision:** `TransactionType` is an enum containing the supported transaction types, such as `DISPENSE` and `RESTOCK`.
 
@@ -201,7 +244,7 @@ Using an enum prevents arbitrary strings such as `"dispense"`, `"Dispense"` and 
 
 Strings are flexible but do not provide the same compile-time restriction to a predefined set of values.
 
-### 3.7 Separate Inventory and Ledger classes
+### 3.8 Separate Inventory and Ledger classes
 
 **Decision:** Inventory management and transaction recording are handled by separate classes.
 
@@ -217,7 +260,7 @@ Separating them makes each class easier to understand and test.
 
 **Trade-off:** The pharmacy service must coordinate these components. This introduces dependencies between classes, but keeps their individual responsibilities focused.
 
-### 3.8 Pharmacy as a service/coordinator
+### 3.9 Pharmacy as a service/coordinator
 
 **Decision:** `Pharmacy` coordinates operations involving customers, inventory and the ledger.
 
@@ -240,70 +283,135 @@ It allows those dependencies to be supplied from outside rather than created int
 **Alternative considered:** Having `Pharmacy` create its own inventory and ledger.
 
 That would make it harder to substitute these dependencies during testing or when introducing alternative implementations.
-## 4. Additional Improvement Beyond the Original Requirements: Low-Stock Alerts
 
-Problem identified
+The customer registry is also maintained inside `Pharmacy`. The initial design sketch showed a separate customer registry, but the final implementation keeps customer registration and lookup within the pharmacy coordinator because those are currently the only operations that need to manage the application's known customers.
+
+If customer management becomes more complex, it could be extracted into a separate `CustomerRegistry` or customer service.
+
+## 4. Extending the Medication Hierarchy: Controlled Medication
+
+The lab brief identifies controlled substances as a possible future medication category. These medications would require stricter dispensing rules, including recording a prescriber for every dispense.
+
+The current design supports this extension through the abstract `Medication` class.
+
+A future class could be introduced as follows:
+
+```java
+public class ControlledMedication extends Medication {
+
+    public ControlledMedication(
+            String name,
+            BigDecimal price,
+            int initialStock,
+            int reorderLevel) {
+        super(name, price, initialStock, reorderLevel);
+    }
+
+    @Override
+    public void validateDispensing(String prescriber) {
+        if (prescriber == null || prescriber.isBlank()) {
+            throw new MissingPrescriberException(
+                "A prescriber is required for controlled medication."
+            );
+        }
+
+        // Additional controlled-medication validation
+        // can be introduced here.
+    }
+
+    @Override
+    public String getCategory() {
+        return "CONTROLLED";
+    }
+}
+```
+
+The existing `Pharmacy.dispense()` method already calls:
+
+```java
+medication.validateDispensing(prescriber);
+```
+
+It does not need to know whether the medication is OTC, prescription-only or controlled. Java invokes the validation method belonging to the actual medication object.
+
+The existing transaction model also has a prescriber component, allowing the supplied prescriber information to be recorded.
+
+Therefore, a controlled-medication class can reuse the existing dispensing and inventory workflow without adding another medication-specific condition to `Pharmacy`.
+
+The new class would still need its own validation rules and tests. If future requirements introduce additional information, such as a controlled-drug register number or authorisation details, the transaction model and relevant workflow may need to be extended to record them.
+
+**Why this design matters:** Medication-specific rules remain within the medication hierarchy instead of accumulating in a central method full of category checks.
+
+## 5. Additional Improvement Beyond the Original Requirements: Low-Stock Alerts
+
+### Problem identified
 
 The original application could track medication quantities, but it did not provide a mechanism to alert pharmacy staff when a medication was approaching a critically low stock level.
 
 This meant staff would have to inspect stock quantities manually to identify medicines that needed replenishment. They could potentially discover a shortage only when a customer requested a medication.
 
-Improvement introduced
+### Improvement introduced
 
 A low-stock alert mechanism was added to help the pharmacy identify medications that have reached or fallen below a configurable reorder threshold.
 
-Each medication now has a reorderLevel that defines the minimum stock level at which an alert should be raised.
+Each medication now has a `reorderLevel` that defines the minimum stock level at which an alert should be raised.
 
 The condition is:
 
+```java
 stock <= reorderLevel
+```
 
-For example:
+For example, using the demonstration values in `Main.java`:
 
-Medication, Current stock, Reorder level, Alert
-Paracetamol, 15, 20, Yes
-Amoxicillin, 39, 10, No
+| Medication  | Current stock | Reorder level | Alert |
+| ----------- | ------------: | ------------: | ----- |
+| Paracetamol |           148 |            20 | No    |
+| Amoxicillin |            39 |            40 | Yes   |
 
-Implementation
+The Paracetamol quantity is 148 after the demonstration's dispensing and restocking operations. Amoxicillin has 39 units remaining after one successful dispense.
 
-The improvement involves two main responsibilities:
+### Implementation
 
-1. Medication
+The improvement involves three main responsibilities:
 
-Each medication stores its own reorder threshold and provides an isLowStock() method to determine whether its current stock has reached that threshold.
+1. **Medication**
 
-2. Inventory
+    Each medication stores its own reorder threshold and provides an `isLowStock()` method to determine whether its current stock has reached that threshold.
 
-The inventory provides a getLowStockMedications() method that identifies all medications requiring attention.
+2. **Inventory**
 
-The pharmacy service exposes this functionality through printLowStockAlerts(), allowing the application to display the affected medications.
+    The inventory provides a `getLowStockMedications()` method that identifies all medications requiring attention.
 
-Why this improvement was chosen
+3. **Pharmacy**
+
+    The pharmacy service exposes this functionality through `printLowStockAlerts()`, allowing the application to display the affected medications.
+
+### Why this improvement was chosen
 
 The improvement addresses a practical pharmacy management problem rather than simply adding technical complexity.
 
 It provides several benefits:
 
+- Helps staff identify medicines that may soon run out.
+- Reduces dependence on manually checking every medication.
+- Supports more proactive stock management.
+- Allows different medications to have different reorder thresholds.
 
-• Helps staff identify medicines that may soon run out..
-• Reduces dependence on manually checking every medication..
-• Supports more proactive stock management..
-• Allows different medications to have different reorder thresholds..
-
-Scope and limitations
+### Scope and limitations
 
 The alerts are informational. They do not automatically restock medication, contact suppliers or generate purchase orders.
 
 The reorder thresholds used in the demonstration are sample values:
 
-
-• Paracetamol: 20 units..
-• Amoxicillin: 10 units..
+- Paracetamol: 20 units.
+- Amoxicillin: 40 units.
 
 These values would need to be configured according to actual pharmacy demand and replenishment requirements.
 
 This improvement provides a foundation for future supplier and purchase-order management functionality.
-## 5. Business rules and data integrity
+
+## 6. Business rules and data integrity
 
 The redesign introduces or reinforces rules that prevent invalid operations.
 
@@ -313,7 +421,13 @@ A medication cannot be dispensed in a quantity greater than its available stock.
 
 For example, attempting to dispense 100 units when only 39 remain must fail.
 
-The failed operation should not create a successful dispensing transaction.
+The failed operation should not create a successful dispensing transaction, and stock must remain unchanged.
+
+### Positive quantities
+
+Dispensing and restocking quantities must be greater than zero.
+
+The medication methods validate quantities before changing stock.
 
 ### Prescription validation
 
@@ -333,13 +447,6 @@ stock <= reorderLevel
 
 This is a warning mechanism. It does not automatically create a purchase order or restock the medication.
 
-The original application did not define reorder thresholds. The demonstration uses:
-
-- Paracetamol: 20 units.
-- Amoxicillin: 10 units.
-
-These are sample values and must be confirmed by the pharmacy before real operational use.
-
 ### Transaction history
 
 The ledger exposes an unmodifiable snapshot rather than its internal collection.
@@ -348,24 +455,33 @@ This prevents callers from directly adding or removing transactions through the 
 
 It does not, by itself, provide permanent storage or a fully immutable audit trail.
 
-## 6. Exception handling
+## 7. Exception handling
 
-The project defines custom exceptions for specific business-rule failures:
+The project defines two custom unchecked exceptions for specific business-rule failures.
 
-- `InsufficientStockException`
-- `MissingPrescriberException`
+| Exception                    | Thrown from                                   | Reason                                                           |
+| ---------------------------- | --------------------------------------------- | ---------------------------------------------------------------- |
+| `InsufficientStockException` | `Medication.dispenseStock()`                  | The requested quantity exceeds available stock.                  |
+| `MissingPrescriberException` | `PrescriptionMedication.validateDispensing()` | Prescription medication is being dispensed without a prescriber. |
 
-These provide more meaningful exception types than relying exclusively on generic exceptions.
+These exceptions provide more meaningful exception types than relying exclusively on generic exceptions.
 
 For example, a caller can distinguish insufficient stock from a missing prescriber and respond differently.
 
-However, defining a custom exception does not automatically mean the application uses it. The corresponding validation code must explicitly throw the custom exception.
+The dispensing workflow calls `validateDispensing()` before reducing stock. Therefore, a missing-prescriber exception prevents the stock operation from proceeding.
 
-If the application continues to throw `IllegalStateException` or `IllegalArgumentException` directly, the custom exception classes are not yet providing their intended benefit.
+The exceptions extend unchecked exception types:
 
-Both custom exceptions extend unchecked exception types, so Java does not require callers to catch or declare them.
+- `InsufficientStockException` extends `IllegalStateException`.
+- `MissingPrescriberException` extends `IllegalArgumentException`.
 
-## 7. Behaviour preservation and corrections
+They are unchecked, so Java does not require callers to catch or declare them.
+
+The application can still catch a specific exception when it needs to handle that expected failure. For example, the demonstration in `Main` catches `InsufficientStockException` when showing a rejected dispensing attempt.
+
+Using a specific exception type is preferable to catching `RuntimeException` for that scenario because unrelated programming errors should not be mistaken for insufficient stock.
+
+## 8. Behaviour preservation and corrections
 
 The redesigned demonstration preserves the valid original transactions:
 
@@ -377,25 +493,23 @@ The original attempt to dispense 100 Amoxicillin units when only 39 remain is re
 
 This corrects the stock-control defect identified during diagnosis. The failed operation must not be recorded as a successful dispensing transaction, and stock must remain at 39.
 
-## 8. Limitations and future improvements
+## 9. Limitations and future improvements
 
 The current design improves the organisation and control of the application, but it is not yet a complete production pharmacy system.
 
-The following limitations remain:
-
-| Area | Current limitation | Possible improvement |
-|---|---|---|
-| Persistence | Inventory and ledger data are held in memory. | Introduce database persistence. |
-| Concurrency | Simultaneous dispensing operations are not protected by a database transaction or locking strategy. | Add transaction management and concurrency control. |
-| Audit history | The ledger provides in-memory history, not durable audit storage. | Store transactions permanently with appropriate access controls. |
-| Transaction snapshots | Transactions may retain references to mutable domain objects. | Store historical values directly in transaction records. |
-| Reordering | Low-stock alerts are informational only. | Add supplier and purchase-order management. |
-| Testing | Business rules need automated test coverage. | Add unit tests for validation, discounts, dispensing and restocking. |
-| Security | The demonstration does not provide authentication or role-based permissions. | Introduce user authentication and authorisation. |
+| Area                  | Current limitation                                                                                  | Possible improvement                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Persistence           | Inventory and ledger data are held in memory.                                                       | Introduce database persistence.                                      |
+| Concurrency           | Simultaneous dispensing operations are not protected by a database transaction or locking strategy. | Add transaction management and concurrency control.                  |
+| Audit history         | The ledger provides in-memory history, not durable audit storage.                                   | Store transactions permanently with appropriate access controls.     |
+| Transaction snapshots | Transactions may retain references to mutable domain objects.                                       | Store historical values directly in transaction records.             |
+| Reordering            | Low-stock alerts are informational only.                                                            | Add supplier and purchase-order management.                          |
+| Testing               | Business rules need automated test coverage.                                                        | Add unit tests for validation, discounts, dispensing and restocking. |
+| Security              | The demonstration does not provide authentication or role-based permissions.                        | Introduce user authentication and authorisation.                     |
 
 These improvements should be introduced as the application grows rather than adding unnecessary complexity to the current implementation.
 
-## 9. Design summary
+## 10. Design summary
 
 The main architectural principle behind the redesign is separation of responsibilities combined with controlled access to application state.
 
@@ -407,5 +521,6 @@ The main architectural principle behind the redesign is separation of responsibi
 - Inventory and ledger classes manage separate responsibilities.
 - The pharmacy service coordinates operations across those components.
 - Custom exceptions make specific business failures distinguishable when used by the validation logic.
+- An open abstract medication hierarchy supports future medication categories without requiring changes to the parent class.
 
 The result is a more maintainable foundation that can be extended with persistence, testing and additional pharmacy functionality without placing every responsibility in a single class.
