@@ -87,7 +87,7 @@ public final class Pharmacy {
             return;
         }
         for (Medication medication : lowStock) {
-            System.out.printf("LOW STOCK: %s — %d remaining (reorder level: %d)%n",
+            System.out.printf("LOW STOCK: %s - %d remaining (reorder level: %d)%n",
                     medication.getName(), medication.getStock(), medication.getReorderLevel());
         }
     }
