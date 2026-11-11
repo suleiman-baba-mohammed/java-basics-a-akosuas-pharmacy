@@ -1,7 +1,11 @@
 package com.akosua.pharmacy.inventory;
 
 import com.akosua.pharmacy.model.Medication;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
 public final class Inventory {
     private final Map<UUID, Medication> medications = new LinkedHashMap<>();

@@ -1,11 +1,16 @@
 package com.akosua.pharmacy;
 
+import com.akosua.pharmacy.exceptions.InsufficientStockException;
 import com.akosua.pharmacy.inventory.Inventory;
 import com.akosua.pharmacy.ledger.Ledger;
-import com.akosua.pharmacy.model.*;
+import com.akosua.pharmacy.model.Customer;
+import com.akosua.pharmacy.model.Medication;
+import com.akosua.pharmacy.model.OverTheCounterMedication;
+import com.akosua.pharmacy.model.PrescriptionMedication;
+import com.akosua.pharmacy.model.RegisteredPatient;
+import com.akosua.pharmacy.model.WalkInCustomer;
 import com.akosua.pharmacy.service.Pharmacy;
 import java.math.BigDecimal;
-import com.akosua.pharmacy.exceptions.InsufficientStockException;
 
 public class Main {
     public static void main(String[] args) {

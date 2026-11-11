@@ -2,10 +2,19 @@ package com.akosua.pharmacy.service;
 
 import com.akosua.pharmacy.inventory.Inventory;
 import com.akosua.pharmacy.ledger.Ledger;
-import com.akosua.pharmacy.model.*;
+import com.akosua.pharmacy.model.Customer;
+import com.akosua.pharmacy.model.Medication;
+import com.akosua.pharmacy.model.Transaction;
+import com.akosua.pharmacy.model.TransactionType;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 
 public final class Pharmacy {
     private final String name;
@@ -37,7 +46,7 @@ public final class Pharmacy {
         medication.dispenseStock(quantity);
 
         BigDecimal subtotal = medication.getPrice().multiply(BigDecimal.valueOf(quantity));
-        BigDecimal total = customer.applyDiscount(subtotal).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal total = customer.applyDiscount(subtotal).setScale(2, RoundingMode.HALF_UP);
         customer.recordDispense("Got " + quantity + " x " + medication.getName());
 
         ledger.record(new Transaction(UUID.randomUUID(), Instant.now(), TransactionType.DISPENSE,
