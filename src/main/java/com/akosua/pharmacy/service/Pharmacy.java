@@ -1,5 +1,7 @@
 package com.akosua.pharmacy.service;
 
+import com.akosua.pharmacy.exceptions.InsufficientStockException;
+import com.akosua.pharmacy.exceptions.MissingPrescriberException;
 import com.akosua.pharmacy.inventory.Inventory;
 import com.akosua.pharmacy.ledger.Ledger;
 import com.akosua.pharmacy.model.Customer;
@@ -15,8 +17,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class Pharmacy {
+
+    privaate static final Logger logger = Logger.getLogger(Pharmacy.class.getName());
+
     private final String name;
     private final Inventory inventory;
     private final Ledger ledger;
@@ -42,8 +49,15 @@ public final class Pharmacy {
     public void dispense(Customer customer, Medication medication, int quantity, String prescriber) {
         requireKnownCustomer(customer);
         requireKnownMedication(medication);
-        medication.validateDispensing(prescriber);
-        medication.dispenseStock(quantity);
+
+        try {
+            medication.validateDispensing(prescriber);
+            medication.dispenseStock(quantity);
+        } catch (MissingPrescriberException | InsufficientStockException refusal) {
+            LOGGER.log(Level.WARNING, "Dispense refused: {0}", refusal.getMessage());
+            throw refusal;
+        }
+
 
         BigDecimal subtotal = medication.getPrice().multiply(BigDecimal.valueOf(quantity));
         BigDecimal total = customer.applyDiscount(subtotal).setScale(2, RoundingMode.HALF_UP);
