@@ -19,5 +19,12 @@ public abstract class Customer {
     public final void recordDispense(String description) { history.add(description); }
     public final List<String> getHistory() { return List.copyOf(history); }
     public final UUID getId() { return id; }
+    
     public final String getName() { return name; }
+
+    @Override
+    public String toString() {
+        return getKind() + " customer " + name;
+    }
+}
 }
