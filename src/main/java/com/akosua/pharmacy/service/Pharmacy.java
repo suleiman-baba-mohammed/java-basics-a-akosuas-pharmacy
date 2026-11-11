@@ -22,7 +22,12 @@ import java.util.logging.Logger;
 
 public final class Pharmacy {
 
-    privaate static final Logger logger = Logger.getLogger(Pharmacy.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(Pharmacy.class.getName());
+
+    /** Money is recorded and shown in cedis to two decimal places (pesewas). */
+    private static final int MONEY_SCALE = 2;
+    private static final RoundingMode MONEY_ROUNDING = RoundingMode.HALF_UP;
+    private static final String CURRENCY = "GHS";
 
     private final String name;
     private final Inventory inventory;
@@ -60,7 +65,8 @@ public final class Pharmacy {
 
 
         BigDecimal subtotal = medication.getPrice().multiply(BigDecimal.valueOf(quantity));
-        BigDecimal total = customer.applyDiscount(subtotal).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = customer.applyDiscount(subtotal).setScale(MONEY_SCALE, MONEY_ROUNDING);
+
         customer.recordDispense("Got " + quantity + " x " + medication.getName());
 
         Optional<String> recordedPrescriber = medication.requiresPrescriber()
@@ -74,8 +80,9 @@ public final class Pharmacy {
                 .map(doctor -> " (prescribed by " + doctor + ")")
                 .orElse("");
 
-        System.out.printf("Dispensed %d x %s to %s%s for GHS %s%n",
-                quantity, medication.getName(), customer.getName(), prescriptionText, total);
+        System.out.printf("Dispensed %d x %s to %s%s for %s %s%n",quantity, medication.getName(), 
+            customer.getName(), prescriptionText, CURRENCY, total.toPlainString());
+
     }
 
     public void restock(Medication medication, int quantity) {
