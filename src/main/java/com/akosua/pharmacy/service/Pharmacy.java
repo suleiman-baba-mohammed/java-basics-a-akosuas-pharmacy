@@ -49,12 +49,17 @@ public final class Pharmacy {
         BigDecimal total = customer.applyDiscount(subtotal).setScale(2, RoundingMode.HALF_UP);
         customer.recordDispense("Got " + quantity + " x " + medication.getName());
 
-        ledger.record(new Transaction(UUID.randomUUID(), Instant.now(), TransactionType.DISPENSE,
-                Optional.of(customer), medication, quantity, total,
-                Optional.ofNullable(prescriber).filter(value -> !value.isBlank())));
+        Optional<String> recordedPrescriber = medication.requiresPrescriber()
+                ? Optional.of(prescriber)
+                : Optional.empty();
 
-        String prescriptionText = prescriber == null || prescriber.isBlank()
-                ? "" : " (prescribed by " + prescriber + ")";
+        ledger.record(new Transaction(UUID.randomUUID(), Instant.now(), TransactionType.DISPENSE,
+                Optional.of(customer), medication, quantity, total, recordedPrescriber));
+
+        String prescriptionText = recordedPrescriber
+                .map(doctor -> " (prescribed by " + doctor + ")")
+                .orElse("");
+
         System.out.printf("Dispensed %d x %s to %s%s for GHS %s%n",
                 quantity, medication.getName(), customer.getName(), prescriptionText, total);
     }
