@@ -240,8 +240,70 @@ It allows those dependencies to be supplied from outside rather than created int
 **Alternative considered:** Having `Pharmacy` create its own inventory and ledger.
 
 That would make it harder to substitute these dependencies during testing or when introducing alternative implementations.
+## 4. Additional Improvement Beyond the Original Requirements: Low-Stock Alerts
 
-## 4. Business rules and data integrity
+Problem identified
+
+The original application could track medication quantities, but it did not provide a mechanism to alert pharmacy staff when a medication was approaching a critically low stock level.
+
+This meant staff would have to inspect stock quantities manually to identify medicines that needed replenishment. They could potentially discover a shortage only when a customer requested a medication.
+
+Improvement introduced
+
+A low-stock alert mechanism was added to help the pharmacy identify medications that have reached or fallen below a configurable reorder threshold.
+
+Each medication now has a reorderLevel that defines the minimum stock level at which an alert should be raised.
+
+The condition is:
+
+stock <= reorderLevel
+
+For example:
+
+Medication, Current stock, Reorder level, Alert
+Paracetamol, 15, 20, Yes
+Amoxicillin, 39, 10, No
+
+Implementation
+
+The improvement involves two main responsibilities:
+
+1. Medication
+
+Each medication stores its own reorder threshold and provides an isLowStock() method to determine whether its current stock has reached that threshold.
+
+2. Inventory
+
+The inventory provides a getLowStockMedications() method that identifies all medications requiring attention.
+
+The pharmacy service exposes this functionality through printLowStockAlerts(), allowing the application to display the affected medications.
+
+Why this improvement was chosen
+
+The improvement addresses a practical pharmacy management problem rather than simply adding technical complexity.
+
+It provides several benefits:
+
+
+• Helps staff identify medicines that may soon run out..
+• Reduces dependence on manually checking every medication..
+• Supports more proactive stock management..
+• Allows different medications to have different reorder thresholds..
+
+Scope and limitations
+
+The alerts are informational. They do not automatically restock medication, contact suppliers or generate purchase orders.
+
+The reorder thresholds used in the demonstration are sample values:
+
+
+• Paracetamol: 20 units..
+• Amoxicillin: 10 units..
+
+These values would need to be configured according to actual pharmacy demand and replenishment requirements.
+
+This improvement provides a foundation for future supplier and purchase-order management functionality.
+## 5. Business rules and data integrity
 
 The redesign introduces or reinforces rules that prevent invalid operations.
 
@@ -286,7 +348,7 @@ This prevents callers from directly adding or removing transactions through the 
 
 It does not, by itself, provide permanent storage or a fully immutable audit trail.
 
-## 5. Exception handling
+## 6. Exception handling
 
 The project defines custom exceptions for specific business-rule failures:
 
@@ -303,7 +365,7 @@ If the application continues to throw `IllegalStateException` or `IllegalArgumen
 
 Both custom exceptions extend unchecked exception types, so Java does not require callers to catch or declare them.
 
-## 6. Behaviour preservation and corrections
+## 7. Behaviour preservation and corrections
 
 The redesigned demonstration preserves the valid original transactions:
 
@@ -315,7 +377,7 @@ The original attempt to dispense 100 Amoxicillin units when only 39 remain is re
 
 This corrects the stock-control defect identified during diagnosis. The failed operation must not be recorded as a successful dispensing transaction, and stock must remain at 39.
 
-## 7. Limitations and future improvements
+## 8. Limitations and future improvements
 
 The current design improves the organisation and control of the application, but it is not yet a complete production pharmacy system.
 
@@ -333,7 +395,7 @@ The following limitations remain:
 
 These improvements should be introduced as the application grows rather than adding unnecessary complexity to the current implementation.
 
-## 8. Design summary
+## 9. Design summary
 
 The main architectural principle behind the redesign is separation of responsibilities combined with controlled access to application state.
 
