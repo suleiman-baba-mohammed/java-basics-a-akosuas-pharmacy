@@ -34,7 +34,7 @@ public abstract class Medication {
      */
     public void validateDispensing(String prescriber) {
         if (requiresPrescriber() && (prescriber == null || prescriber.isBlank())) {
-            throw new MissingPrescriberException("A valid prescriber is required for " + name);
+            throw new MissingPrescriberException(name);
         }
     }
 
@@ -42,8 +42,7 @@ public abstract class Medication {
     public final void dispenseStock(int quantity) {
         validatePositiveQuantity(quantity);
         if (quantity > stock) {
-            throw new InsufficientStockException("Insufficient stock for " + name
-                    + ": requested " + quantity + ", available " + stock);
+            throw new InsufficientStockException(name, quantity, stock);
         }
         stock -= quantity;
     }
