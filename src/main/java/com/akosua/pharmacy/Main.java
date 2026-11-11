@@ -5,6 +5,7 @@ import com.akosua.pharmacy.ledger.Ledger;
 import com.akosua.pharmacy.model.*;
 import com.akosua.pharmacy.service.Pharmacy;
 import java.math.BigDecimal;
+import com.akosua.pharmacy.exceptions.InsufficientStockException;
 
 public class Main {
     public static void main(String[] args) {
@@ -32,7 +33,7 @@ public class Main {
         // This is deliberately rejected: only 39 Amoxicillin remain.
         try {
             pharmacy.dispense(kofi, amoxicillin, 100, "Dr. Boateng");
-        } catch (RuntimeException exception) {
+        } catch (InsufficientStockException exception) {
             System.out.println("Dispense rejected: " + exception.getMessage());
         }
 
