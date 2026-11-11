@@ -74,7 +74,9 @@ public final class Pharmacy {
                 : Optional.empty();
 
         ledger.record(new Transaction(UUID.randomUUID(), Instant.now(), TransactionType.DISPENSE,
-                Optional.of(customer), medication, quantity, total, recordedPrescriber));
+                                Optional.of(customer.getId()), medication.getId(), medication.getName(),
+                quantity, total, recordedPrescriber));
+
 
         String prescriptionText = recordedPrescriber
                 .map(doctor -> " (prescribed by " + doctor + ")")
@@ -89,7 +91,8 @@ public final class Pharmacy {
         requireKnownMedication(medication);
         medication.restock(quantity);
         ledger.record(new Transaction(UUID.randomUUID(), Instant.now(), TransactionType.RESTOCK,
-                Optional.empty(), medication, quantity, BigDecimal.ZERO, Optional.empty()));
+                                Optional.empty(), medication.getId(), medication.getName(),
+                quantity, BigDecimal.ZERO, Optional.empty()));
         System.out.println("Restocked " + quantity + " x " + medication.getName());
     }
 
