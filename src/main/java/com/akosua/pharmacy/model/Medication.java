@@ -3,6 +3,7 @@ package com.akosua.pharmacy.model;
 import java.math.BigDecimal;
 import java.util.UUID;
 import com.akosua.pharmacy.exceptions.InsufficientStockException;
+import com.akosua.pharmacy.exceptions.MissingPrescriberException;
 
 public abstract class Medication {
     private final UUID id = UUID.randomUUID();
@@ -22,7 +23,21 @@ public abstract class Medication {
         this.reorderLevel = reorderLevel;
     }
 
-    public abstract void validateDispensing(String prescriber);
+    
+        /** True when every dispense of this medication must record a prescriber. */
+    public abstract boolean requiresPrescriber();
+
+    /**
+     * Checks the prescription rule. When {@link #requiresPrescriber()} is false the
+     * prescriber argument is ignored, exactly as the original program did.
+     * A medication with stricter rules can override this method.
+     */
+    public void validateDispensing(String prescriber) {
+        if (requiresPrescriber() && (prescriber == null || prescriber.isBlank())) {
+            throw new MissingPrescriberException("A valid prescriber is required for " + name);
+        }
+    }
+
 
     public final void dispenseStock(int quantity) {
         validatePositiveQuantity(quantity);
