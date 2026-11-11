@@ -65,7 +65,7 @@ This structure prevents unrelated responsibilities from accumulating in one clas
 
 For example, all medications have a name, price and stock quantity. However, prescription medication requires prescriber validation, whereas over-the-counter medication does not.
 
-Similarly, customers share information such as an ID, name and purchase history, but different customer types may receive different discounts.
+Similarly, customers share an ID and a name, but different customer types receive different discounts. A customer's purchase history is deliberately not stored on the customer: it is read from the ledger (`Pharmacy.getHistory`), so there is a single source of truth.
 
 An abstract class allows shared fields and implemented methods to be defined once while requiring subclasses to provide specific behaviour.
 
@@ -111,7 +111,7 @@ A package-private constructor would work for the current medication subclasses b
 
 An abstract class cannot be instantiated directly, regardless of whether its constructor is public, protected or package-private.
 
-**Why some methods are `final`:** Methods that protect important stock or history rules should not be overridden casually by subclasses. Declaring them `final` prevents subclasses from replacing that implementation.
+**Why some methods are `final`:** Methods that protect the stock rules should not be overridden casually by subclasses. Declaring them `final` prevents subclasses from replacing that implementation.
 
 **Trade-off:** Restricting access improves control but means other classes must use the public methods provided by the model.
 
@@ -308,21 +308,17 @@ public class ControlledMedication extends Medication {
     }
 
     @Override
-    public void validateDispensing(String prescriber) {
-        if (prescriber == null || prescriber.isBlank()) {
-            throw new MissingPrescriberException(
-                "A prescriber is required for controlled medication."
-            );
-        }
-
-        // Additional controlled-medication validation
-        // can be introduced here.
-    }
-
-    @Override
     public String getCategory() {
         return "CONTROLLED";
     }
+
+    @Override
+    public boolean requiresPrescriber() {
+        return true;
+    }
+
+    // Stricter checks, if needed, can be added by also overriding
+    // validateDispensing(String prescriber) and calling super first.
 }
 ```
 
@@ -334,7 +330,8 @@ medication.validateDispensing(prescriber);
 
 It does not need to know whether the medication is OTC, prescription-only or controlled. Java invokes the validation method belonging to the actual medication object.
 
-The existing transaction model also has a prescriber component, allowing the supplied prescriber information to be recorded.
+The transaction record already has a prescriber component, and `Pharmacy.dispense()` stores it for every medication whose `requiresPrescriber()` is true, so controlled substances get the prescriber recorded with no further change.
+
 
 Therefore, a controlled-medication class can reuse the existing dispensing and inventory workflow without adding another medication-specific condition to `Pharmacy`.
 
@@ -462,9 +459,13 @@ The project defines two custom unchecked exceptions for specific business-rule f
 | Exception                    | Thrown from                                   | Reason                                                           |
 | ---------------------------- | --------------------------------------------- | ---------------------------------------------------------------- |
 | `InsufficientStockException` | `Medication.dispenseStock()`                  | The requested quantity exceeds available stock.                  |
-| `MissingPrescriberException` | `PrescriptionMedication.validateDispensing()` | Prescription medication is being dispensed without a prescriber. |
+| `MissingPrescriberException` | `Medication.validateDispensing()`             | A medication that requires a prescriber is being dispensed without one. |
+
+
+Both exceptions carry the facts as fields (medication name; and requested and available quantity for stock), so callers can react to them or log them without parsing the message. `Pharmacy.dispense()` logs each refusal as a warning with `java.util.logging` and then rethrows it. Only the medication name and quantities are logged, never patient details.
 
 These exceptions provide more meaningful exception types than relying exclusively on generic exceptions.
+
 
 For example, a caller can distinguish insufficient stock from a missing prescriber and respond differently.
 
@@ -493,6 +494,19 @@ The original attempt to dispense 100 Amoxicillin units when only 39 remain is re
 
 This corrects the stock-control defect identified during diagnosis. The failed operation must not be recorded as a successful dispensing transaction, and stock must remain at 39.
 
+### Differences from the original output
+
+Apart from the stock fix, these are the deliberate differences:
+
+| Original | Rebuilt | Reason |
+| --- | --- | --- |
+| `GHS 25.0`, `GHS 28.5` (`double` formatting) | `GHS 25.00`, `GHS 28.50` | Money is exact `BigDecimal`, rounded once to two decimal places (pesewas) in `Pharmacy`. |
+| `12.50 x 0.95` printed as `11.875` | `11.88` | Same rounding rule, half-up. |
+| Over-dispense printed as a success and stock went to `-61` | Refused; stock stays `39`; 3 transactions, not 4 | The rule that must never be broken. |
+| A prescriber passed for an OTC item is ignored | Still ignored (not printed, not recorded) | Preserved on purpose. |
+| `null` prescriber rejected, blank accepted | Both rejected | A blank name is not a prescriber. |
+| Zero or negative quantities accepted | Rejected | They would corrupt stock. |
+
 ## 9. Limitations and future improvements
 
 The current design improves the organisation and control of the application, but it is not yet a complete production pharmacy system.
@@ -502,9 +516,9 @@ The current design improves the organisation and control of the application, but
 | Persistence           | Inventory and ledger data are held in memory.                                                       | Introduce database persistence.                                      |
 | Concurrency           | Simultaneous dispensing operations are not protected by a database transaction or locking strategy. | Add transaction management and concurrency control.                  |
 | Audit history         | The ledger provides in-memory history, not durable audit storage.                                   | Store transactions permanently with appropriate access controls.     |
-| Transaction snapshots | Transactions may retain references to mutable domain objects.                                       | Store historical values directly in transaction records.             |
 | Reordering            | Low-stock alerts are informational only.                                                            | Add supplier and purchase-order management.                          |
-| Testing               | Business rules need automated test coverage.                                                        | Add unit tests for validation, discounts, dispensing and restocking. |
+| Testing               | 24 unit tests cover the business rules, but there is no CI pipeline yet.                            | Run `mvn test` automatically on every push.                          |
+
 | Security              | The demonstration does not provide authentication or role-based permissions.                        | Introduce user authentication and authorisation.                     |
 
 These improvements should be introduced as the application grows rather than adding unnecessary complexity to the current implementation.
