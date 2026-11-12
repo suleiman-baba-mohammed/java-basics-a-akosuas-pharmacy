@@ -14,8 +14,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-    <build>
-            <dependencies>
+    <dependencies>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -23,8 +22,7 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
     <build>
-
+    <finalName>akosuas-pharmacy</finalName>
     </build>
 </project>
